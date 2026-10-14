@@ -1,0 +1,72 @@
+name: Weekly drift monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      shift:
+        description: "How far the population drifts (0 = none, 1 = a lot). Empty = rotate by run number."
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Simulate this week's batch
+        env:
+          SHIFT_INPUT: ${{ inputs.shift }}
+        run: |
+          if [ -n "$SHIFT_INPUT" ]; then
+            SHIFT="$SHIFT_INPUT"
+          else
+            # cycle 0 -> 0.35 -> 0.7 -> 1.0 so scheduled runs eventually alert
+            SHIFT=$(python -c "print([0, 0.35, 0.7, 1.0][${{ github.run_number }} % 4])")
+          fi
+          echo "Using shift=$SHIFT"
+          python -m src.synth --rows 2000 --seed ${{ github.run_number }} --shift "$SHIFT" --out data/batch.csv
+
+      - name: Data contract check on the new batch
+        run: python -m src.validate data/batch.csv
+
+      - name: Compare batch to training data (PSI)
+        id: psi
+        run: |
+          set +e
+          python -m src.drift data/reference.csv data/batch.csv --report reports/drift.md --json reports/drift.json
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat reports/drift.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update a drift issue
+        if: steps.psi.outputs.code == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create data-drift --color D93F0B --description "Population drift detected" --force
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          { cat reports/drift.md; echo; echo "Run: $RUN_URL"; } > issue_body.md
+          EXISTING=$(gh issue list --label data-drift --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file issue_body.md
+          else
+            gh issue create --title "Data drift detected: review before the next release" \
+                            --label data-drift --body-file issue_body.md
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-report-${{ github.run_number }}
+          path: reports/drift.*
+          retention-days: 30
