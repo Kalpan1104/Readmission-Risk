@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]          
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-validate-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Unit tests
+        run: pytest
+
+      - name: Data contract check
+        run: python -m src.validate data/reference.csv
+
+      - name: Train
+        run: python -m src.train data/reference.csv --out reports
+
+      - name: Evaluate + release gate
+        run: python -m src.evaluate --dir reports --version "ci-${GITHUB_SHA::7}"
+
+      - name: Keep the model card from this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-card-${{ github.run_number }}
+          path: |
+            reports/model_card.md
+            reports/metrics.json
+          retention-days: 14
