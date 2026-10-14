@@ -1,0 +1,13 @@
+patient_id,age,sex,primary_dx,length_of_stay,prior_admissions,num_medications,hba1c,ed_visits_6m,discharge_to,readmitted_30d
+P005000000,52,F,other,2,0,5,6.5,1,home_health,0
+P005000001,44,F,heart_failure,5,2,8,5.4,1,home_health,0
+P005000002,140,F,pneumonia,3,2,6,,0,home_health,0
+P005000003,70,M,copd,2,1,6,,0,home_health,0
+P005000004,81,F,Heart Failure,6,1,2,7.1,0,home_health,0
+P005000005,66,M,heart_failure,10,2,14,6.5,1,home,1
+P005000006,56,M,other,1,1,2,,1,skilled_nursing,0
+P005000006,52,M,other,2,0,3,6.7,0,home_health,0
+P005000008,75,F,copd,5,1,13,,0,home,0
+P005000009,89,F,other,4,5,6,5.8,4,,1
+P005000010,68,M,other,9,0,7,5.3,0,home,0
+P005000011,46,F,heart_failure,8,2,8,5.9,1,home,1
