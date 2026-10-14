@@ -1,0 +1,42 @@
+name: Release model
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: pytest
+
+      - run: python -m src.validate data/reference.csv
+
+      - run: python -m src.train data/reference.csv --out reports
+
+      - name: Evaluate + release gate (fails the release if the gate fails)
+        run: python -m src.evaluate --dir reports --version "$GITHUB_REF_NAME"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp reports/model.joblib "readmission-model-${GITHUB_REF_NAME}.joblib"
+          gh release create "$GITHUB_REF_NAME" \
+            "readmission-model-${GITHUB_REF_NAME}.joblib" \
+            reports/metrics.json \
+            reports/model_card.md \
+            --title "Readmission model ${GITHUB_REF_NAME}" \
+            --notes-file reports/model_card.md
